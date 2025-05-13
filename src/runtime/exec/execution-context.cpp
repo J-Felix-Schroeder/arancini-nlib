@@ -181,44 +181,61 @@ int execution_context::invoke(void *cpu_state) {
     return result.exit_code;
 }
 
+// calling convention for syscalls on x64 has params in:
+// "%rdi, %rsi, %rdx, %r10, %r8 and %r9"
+
+#define SYSCALL_PARAM0
+#define SYSCALL_PARAM1 , x86_state->RDI
+#define SYSCALL_PARAM2 SYSCALL_PARAM1, x86_state->RSI
+#define SYSCALL_PARAM3 SYSCALL_PARAM2, x86_state->RDX
+#define SYSCALL_PARAM4 SYSCALL_PARAM3, x86_state->R10
+#define SYSCALL_PARAM5 SYSCALL_PARAM4, x86_state->R8
+#define SYSCALL_PARAM6 SYSCALL_PARAM5, x86_state->R9
+#define SYSCALL_PARAMS(n) SYSCALL_PARAM##n
+#define SIMPLE_SYSCALL(x86_num, name, num_params)                              \
+    case x86_num: {                                                            \
+        util::global_logger.debug("System call: " #name "()\n");               \
+        auto ret = native_syscall(__NR_##name SYSCALL_PARAMS(num_params));     \
+        x86_state->RAX = ret;                                                  \
+        break;                                                                 \
+    }
+#define COMPLEX_SYSCALL(x86_num, name, ...)                                    \
+    case x86_num: {                                                            \
+        util::global_logger.debug("System call: " #name "()\n");               \
+        auto ret = native_syscall(__NR_##name, __VA_ARGS__);                   \
+        x86_state->RAX = ret;                                                  \
+        break;                                                                 \
+    }
+
 int execution_context::internal_call(void *cpu_state, int call) {
     if (call == 1) { // syscall
         auto x86_state = (x86::x86_cpu_state *)cpu_state;
         util::global_logger.debug("System call number: {}\n",
                                   util::copy(x86_state->RAX));
         switch (x86_state->RAX) {
-        case 0: // read
-        {
-            util::global_logger.debug("System call: read()\n");
-            uint64_t fd = x86_state->RDI;
-            auto buf = (uintptr_t)get_memory_ptr((off64_t)x86_state->RSI);
-            uint64_t count = x86_state->RDX;
-            x86_state->RAX = native_syscall(__NR_read, fd, buf, count);
-            break;
-        }
-        case 1: // write
-        {
-            util::global_logger.debug("System call: write()\n");
-            uint64_t fd = x86_state->RDI;
-            auto buf = (uintptr_t)get_memory_ptr((off64_t)x86_state->RSI);
-            uint64_t count = x86_state->RDX;
-            x86_state->RAX = native_syscall(__NR_write, fd, buf, count);
-            break;
-        }
-        case 2: // open
-        {
-            util::global_logger.debug("System call: open()\n");
-            auto filename = (uintptr_t)get_memory_ptr((off64_t)x86_state->RDI);
-            uint64_t flags = x86_state->RSI;
-            uint64_t mode = x86_state->RDX;
-            x86_state->RAX = native_syscall(__NR_openat, (uint64_t)AT_FDCWD,
-                                            filename, flags, mode);
-            break;
-        }
-        case 3: // close
-            util::global_logger.debug("System call: close()\n");
-            x86_state->RAX = native_syscall(__NR_close, x86_state->RDI);
-            break;
+            SIMPLE_SYSCALL(0, read, 3);
+            SIMPLE_SYSCALL(1, write, 3);
+            COMPLEX_SYSCALL(2, openat, AT_FDCWD, SYSCALL_PARAMS(3));
+            SIMPLE_SYSCALL(3, close, 1);
+            SIMPLE_SYSCALL(4, lseek, 3);
+            SIMPLE_SYSCALL(5, mprotect, 3);
+            SIMPLE_SYSCALL(6, munmap, 2);
+            SIMPLE_SYSCALL(14, rt_sigprocmask, 4);
+            SIMPLE_SYSCALL(19, readv, 3);
+            SIMPLE_SYSCALL(20, writev, 3);
+            SIMPLE_SYSCALL(28 madvise, 3);
+            SIMPLE_SYSCALL(60, exit, 1);
+            SIMPLE_SYSCALL(72, fcntl, 3);
+            SIMPLE_SYSCALL(77, ftruncate, 2);
+            SIMPLE_SYSCALL(186, gettid, 0);
+            SIMPLE_SYSCALL(200, tkill, 2);
+            SIMPLE_SYSCALL(202, futex, 6);
+            SIMPLE_SYSCALL(203, sched_setaffinity, 3);
+            SIMPLE_SYSCALL(204, sched_getaffinity, 3);
+            SIMPLE_SYSCALL(231, exit_group, 1);
+            SIMPLE_SYSCALL(228, clock_gettime, 2);
+            SIMPLE_SYSCALL(258, mkdirat, 3);
+            SIMPLE_SYSCALL(324, membarrier, 2);
         case 4: // stat
         case 5: // fstat
         case 6: // lstat
@@ -309,15 +326,6 @@ int execution_context::internal_call(void *cpu_state, int call) {
             x86_state->RAX = ret;
             break;
         }
-        case 8: // lseek
-        {
-            util::global_logger.debug("System call: lseek()\n");
-            uint64_t fd = x86_state->RDI;
-            uint64_t offset = x86_state->RSI;
-            uint64_t whence = x86_state->RDX;
-            x86_state->RAX = native_syscall(__NR_lseek, fd, offset, whence);
-            break;
-        }
         case 9: // mmap
         {
             util::global_logger.debug("System call: mmap()\n");
@@ -352,30 +360,6 @@ int execution_context::internal_call(void *cpu_state, int call) {
 
             break;
         }
-        case 10: // mprotect
-        {
-            util::global_logger.debug("System call: mprotect()\n");
-
-            auto addr = (uintptr_t)get_memory_ptr((int64_t)x86_state->RDI);
-            uint64_t length = x86_state->RSI;
-            uint64_t prot = x86_state->RDX;
-
-            auto ret = native_syscall(__NR_mprotect, addr, length, prot);
-            x86_state->RAX = ret;
-            break;
-        }
-        case 11: // munmap
-        {
-            util::global_logger.debug("System call: munmap()\n");
-
-            auto addr = (uintptr_t)get_memory_ptr((int64_t)x86_state->RDI);
-            uint64_t length = x86_state->RSI;
-
-            // Don't allow arbitrary unmaps?
-            x86_state->RAX = native_syscall(__NR_munmap, addr, length);
-
-            break;
-        }
         case 12: // brk
         {
             util::global_logger.debug("System call: brk()\n");
@@ -406,20 +390,6 @@ int execution_context::internal_call(void *cpu_state, int call) {
             }
             break;
         }
-        case 14: // rt_sigprocmask
-        {
-            util::global_logger.debug("System call: rt_sigprocmask()\n");
-
-            // Not sure if we should allow that
-            auto set = (uintptr_t)get_memory_ptr(x86_state->RSI);
-            auto oldset =
-                x86_state->RDX ? (uintptr_t)get_memory_ptr(x86_state->RDX) : 0;
-
-            auto ret = native_syscall(__NR_rt_sigprocmask, x86_state->RDI, set,
-                                      oldset, x86_state->R10);
-            x86_state->RAX = ret;
-            break;
-        }
         case 16: // ioctl
         {
             util::global_logger.debug("System call: ioctl()\n");
@@ -440,48 +410,6 @@ int execution_context::internal_call(void *cpu_state, int call) {
 
             x86_state->RAX =
                 native_syscall(__NR_ioctl, x86_state->RDI, request, arg);
-            break;
-        }
-        case 19: // readv
-        {
-            util::global_logger.debug("System call: readv()\n");
-
-            auto iovec = (const struct iovec *)get_memory_ptr(x86_state->RSI);
-            auto iocnt = x86_state->RDX;
-            struct iovec iovec_new[iocnt];
-            for (auto i = 0ull; i < iocnt; ++i) {
-                iovec_new[i].iov_base = reinterpret_cast<void *>(
-                    get_memory_ptr(((uintptr_t)iovec[i].iov_base)));
-                iovec_new[i].iov_len = iovec[i].iov_len;
-            }
-
-            x86_state->RAX = native_syscall(__NR_readv, x86_state->RDI,
-                                            (uintptr_t)iovec_new, iocnt);
-            break;
-        }
-        case 20: // writev
-        {
-            util::global_logger.debug("System call: writev()\n");
-
-            auto iovec = (const struct iovec *)get_memory_ptr(x86_state->RSI);
-            auto iocnt = x86_state->RDX;
-            struct iovec iovec_new[iocnt];
-            for (auto i = 0ull; i < iocnt; ++i) {
-                iovec_new[i].iov_base = reinterpret_cast<void *>(
-                    get_memory_ptr(((uintptr_t)iovec[i].iov_base)));
-                iovec_new[i].iov_len = iovec[i].iov_len;
-            }
-
-            x86_state->RAX = native_syscall(__NR_writev, x86_state->RDI,
-                                            (uintptr_t)iovec_new, iocnt);
-            break;
-        }
-        case 28: // madvise
-        {
-            util::global_logger.debug("System call: madvise()\n");
-            auto start = (uintptr_t)get_memory_ptr(x86_state->RDI);
-            x86_state->RAX = native_syscall(__NR_madvise, start, x86_state->RSI,
-                                            x86_state->RDX);
             break;
         }
         case 56: // clone
@@ -515,13 +443,6 @@ int execution_context::internal_call(void *cpu_state, int call) {
             pthread_mutex_destroy(&rax_lock);
             pthread_cond_destroy(&rax_cond);
             // pthread_detach(child);
-            break;
-        }
-        case 77: // ftruncate
-        {
-            util::global_logger.debug("System call: ftruncate()\n");
-            x86_state->RAX =
-                native_syscall(__NR_ftruncate, x86_state->RDI, x86_state->RSI);
             break;
         }
         case 25: // mremap
@@ -578,39 +499,6 @@ int execution_context::internal_call(void *cpu_state, int call) {
             }
             x86_state->R11 = 0x246;
             break;
-        case 186: // gettid
-            util::global_logger.debug("System call: gettid()\n");
-            x86_state->RAX = gettid();
-            break;
-        case 200: // tkill
-            util::global_logger.debug("System call: kill()\n");
-            x86_state->RAX =
-                native_syscall(__NR_tkill, x86_state->RDI, x86_state->RSI);
-            break;
-        case 202: // futex
-        {
-            util::global_logger.debug("System call: futex()\n");
-            auto addr = (uint64_t)get_memory_ptr(x86_state->RDI);
-            auto timespec =
-                x86_state->R10 ? (uint64_t)get_memory_ptr(x86_state->R10) : 0;
-            auto addr2 = (uint64_t)get_memory_ptr(x86_state->R8);
-            x86_state->RAX = native_syscall(__NR_futex, addr, x86_state->RSI,
-                                            (uint64_t)x86_state->RDX, timespec,
-                                            addr2, x86_state->R9);
-            break;
-        }
-        case 203: // sched_set_affinity
-            util::global_logger.debug("System call: sched_set_affinity()\n");
-            x86_state->RAX = native_syscall(
-                __NR_sched_setaffinity, x86_state->RDI, x86_state->RSI,
-                (uintptr_t)get_memory_ptr((int64_t)x86_state->RDX));
-            break;
-        case 204: // sched_get_affinity
-            util::global_logger.debug("System call: sched_get_affinity()\n");
-            x86_state->RAX = native_syscall(
-                __NR_sched_getaffinity, x86_state->RDI, x86_state->RSI,
-                (uintptr_t)get_memory_ptr((int64_t)x86_state->RDX));
-            break;
         case 218: // set_tid_address
         {
             util::global_logger.debug("System call: set_tid_address()\n");
@@ -621,28 +509,6 @@ int execution_context::internal_call(void *cpu_state, int call) {
             x86_state->RAX = gettid();
             break;
         }
-        case 231:
-            util::global_logger.debug("System call: exit()\n");
-
-            util::global_logger.info(
-                "Exiting from emulated process with exit code: {}\n",
-                util::copy(x86_state->RDI));
-            exit(x86_state->RDI);
-            return 1;
-        case 228: // clock_gettime
-            util::global_logger.debug("System call: clock_gettime()\n");
-            x86_state->RAX = native_syscall(
-                __NR_clock_gettime, x86_state->RDI,
-                (uintptr_t)get_memory_ptr((int64_t)x86_state->RSI));
-            break;
-        case 60: // exit
-            util::global_logger.debug("System call: exit()\n");
-            native_syscall(__NR_exit, x86_state->RDI);
-            break;
-        case 324: // membarrier
-            util::global_logger.debug("System call: membarrier()\n");
-            native_syscall(__NR_rseq, x86_state->RDI, x86_state->RSI);
-            break;
         default:
             util::global_logger.error("Unsupported system call: {:#x}\n",
                                       util::copy(x86_state->RAX));
