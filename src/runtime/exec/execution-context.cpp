@@ -215,18 +215,20 @@ int execution_context::internal_call(void *cpu_state, int call) {
         switch (x86_state->RAX) {
             SIMPLE_SYSCALL(0, read, 3);
             SIMPLE_SYSCALL(1, write, 3);
-            COMPLEX_SYSCALL(2, openat, AT_FDCWD, SYSCALL_PARAMS(3));
+            COMPLEX_SYSCALL(2, openat, (unsigned long)AT_FDCWD SYSCALL_PARAMS(3));
             SIMPLE_SYSCALL(3, close, 1);
-            SIMPLE_SYSCALL(4, lseek, 3);
-            SIMPLE_SYSCALL(5, mprotect, 3);
-            SIMPLE_SYSCALL(6, munmap, 2);
+            SIMPLE_SYSCALL(8, lseek, 3);
+            SIMPLE_SYSCALL(10, mprotect, 3);
+            SIMPLE_SYSCALL(11, munmap, 2);
             SIMPLE_SYSCALL(14, rt_sigprocmask, 4);
             SIMPLE_SYSCALL(19, readv, 3);
             SIMPLE_SYSCALL(20, writev, 3);
-            SIMPLE_SYSCALL(28 madvise, 3);
+            SIMPLE_SYSCALL(28, madvise, 3);
+            SIMPLE_SYSCALL(35, nanosleep, 2);
             SIMPLE_SYSCALL(60, exit, 1);
             SIMPLE_SYSCALL(72, fcntl, 3);
             SIMPLE_SYSCALL(77, ftruncate, 2);
+            COMPLEX_SYSCALL(83, mkdirat, (unsigned long)AT_FDCWD SYSCALL_PARAMS(2));
             SIMPLE_SYSCALL(186, gettid, 0);
             SIMPLE_SYSCALL(200, tkill, 2);
             SIMPLE_SYSCALL(202, futex, 6);
