@@ -54,6 +54,8 @@ static std::unique_ptr<translator> get_translator(ir_builder &builder,
     case XED_ICLASS_CWD:
     case XED_ICLASS_CDQ:
     case XED_ICLASS_CDQE:
+    case XED_ICLASS_CWDE:
+    case XED_ICLASS_CBW:
         return std::make_unique<mov_translator>(builder);
 
     case XED_ICLASS_SETNBE:

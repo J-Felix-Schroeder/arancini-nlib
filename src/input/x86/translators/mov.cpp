@@ -67,6 +67,22 @@ void mov_translator::do_translate() {
         break;
     }
 
+    case XED_ICLASS_CWDE: {
+        // xed encoding: cwde eax ax
+        auto ax = read_reg(value_type::s16(), xedreg_to_offset(XED_REG_AX));
+        auto sx = builder().insert_sx(value_type::s32(), ax->val());
+        write_operand(0, sx->val());
+        break;
+    }
+
+    case XED_ICLASS_CBW: {
+        // xed encoding: cbw ax al
+        auto al = read_reg(value_type::s8(), xedreg_to_offset(XED_REG_AL));
+        auto sx = builder().insert_sx(value_type::s16(), al->val());
+        write_operand(0, sx->val());
+        break;
+    }
+
     case XED_ICLASS_MOVQ: {
         // up to SSE2
         auto src = read_operand(1);
