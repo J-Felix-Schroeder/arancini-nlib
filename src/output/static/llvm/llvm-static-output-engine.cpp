@@ -675,7 +675,7 @@ Value *llvm_static_output_engine_impl::materialise_port(
         // auto src_reg = builder.CreateGEP(types.cpu_state, state_arg, {
         // ConstantInt::get(types.i64, 0), ConstantInt::get(types.i32,
         // rrn->regidx()) }, 	idx_to_reg_name(rrn->regidx()));
-        auto src_reg = reg_to_alloca_.at((reg_offsets)rrn->regoff());
+        ::llvm::Value *src_reg = reg_to_alloca_.at((reg_offsets)rrn->regoff());
 
         ::llvm::Type *ty;
         Align align = Align(8);
@@ -714,6 +714,13 @@ Value *llvm_static_output_engine_impl::materialise_port(
                                      std::to_string(rrn->val().type().width()) +
                                      " in load");
         }
+
+        if (rrn->internal_regoff() != 0) {
+            src_reg = builder.CreateGEP(
+                ty, src_reg,
+                ConstantInt::get(types.i64, rrn->internal_regoff()));
+        }
+
         return builder.CreateAlignedLoad(ty, src_reg, align);
     }
 

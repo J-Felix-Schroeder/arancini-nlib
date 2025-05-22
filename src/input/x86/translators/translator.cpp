@@ -305,8 +305,11 @@ value_node *translator::read_operand(int opnum) {
         case XED_REG_CLASS_GPR:
             switch (xed_get_register_width_bits(reg)) {
             case 8:
-                // FIXME AH, CH, DH, BH
-                return read_reg(value_type::u8(), xedreg_to_offset(reg));
+                if (is_high_byte(reg)) {
+                    return read_reg(value_type::u8(), xedreg_to_offset(reg), 1);
+                } else {
+                    return read_reg(value_type::u8(), xedreg_to_offset(reg));
+                }
             case 16:
                 return read_reg(value_type::u16(), xedreg_to_offset(reg));
             case 32:
@@ -752,9 +755,10 @@ action_node *translator::write_reg(reg_offsets reg, port &value) {
                                      offset_to_name(reg), value);
 }
 
-value_node *translator::read_reg(const value_type &vt, reg_offsets reg) {
+value_node *translator::read_reg(const value_type &vt, reg_offsets reg,
+                                 uint8_t internal_offset) {
     return builder_.insert_read_reg(vt, (unsigned long)reg, offset_to_idx(reg),
-                                    offset_to_name(reg));
+                                    offset_to_name(reg), internal_offset);
 }
 
 void translator::write_flags(value_node *op, flag_op zf, flag_op cf, flag_op of,

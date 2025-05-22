@@ -374,7 +374,7 @@ void arm64_translation_context::materialise_read_reg(const read_reg_node &n) {
     auto &dest_vregs = vreg_alloc_.allocate(n.val());
     for (std::size_t i = 0; i < dest_vregs.size(); ++i) {
         std::size_t width = dest_vregs[i].type().width();
-        auto addr = guestreg_memory_operand(n.regoff() + i * width);
+        auto addr = guestreg_memory_operand(n.regoff() + i * width + n.internal_regoff());
         switch (width) {
         case 1:
         case 8:
