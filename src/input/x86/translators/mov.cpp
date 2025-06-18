@@ -22,7 +22,10 @@ void mov_translator::do_translate() {
         // TODO: temporary hack for MOVQ with immediate
         if (is_immediate_operand(1) &&
             get_operand_width(1) < get_operand_width(0)) {
-            op1 = builder().insert_zx(value_type::u64(), op1->val());
+            op1 =
+                builder().insert_sx(value_type(value_type_class::signed_integer,
+                                               get_operand_width(0)),
+                                    op1->val());
         }
         write_operand(0, op1->val());
         break;
@@ -69,7 +72,8 @@ void mov_translator::do_translate() {
 
     case XED_ICLASS_CWDE: {
         // xed encoding: cwde eax ax
-        auto ax = read_reg(value_type::s16(), xedreg_to_offset(XED_REG_AX));
+        auto ax =
+            builder().insert_bitcast(value_type::s16(), read_operand(1)->val());
         auto sx = builder().insert_sx(value_type::s32(), ax->val());
         write_operand(0, sx->val());
         break;
@@ -77,7 +81,8 @@ void mov_translator::do_translate() {
 
     case XED_ICLASS_CBW: {
         // xed encoding: cbw ax al
-        auto al = read_reg(value_type::s8(), xedreg_to_offset(XED_REG_AL));
+        auto al =
+            builder().insert_bitcast(value_type::s8(), read_operand(1)->val());
         auto sx = builder().insert_sx(value_type::s16(), al->val());
         write_operand(0, sx->val());
         break;
