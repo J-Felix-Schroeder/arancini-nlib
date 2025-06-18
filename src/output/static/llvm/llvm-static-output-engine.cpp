@@ -84,9 +84,13 @@ void llvm_static_output_engine_impl::generate() {
     InitializeAllAsmParsers();
     InitializeAllAsmPrinters();
 
+    ::util::global_logger.info("Generating LLVM IR for static output\n");
     build();
+    ::util::global_logger.info("LLVM IR generation complete\n");
     optimise();
+    ::util::global_logger.info("LLVM IR optimisations complete\n");
     compile();
+    ::util::global_logger.info("LLVM IR compilation complete\n");
 }
 
 void llvm_static_output_engine_impl::initialise_types() {
@@ -842,7 +846,10 @@ Value *llvm_static_output_engine_impl::materialise_port(
             case binary_arith_op::div: {
                 if (is_f_or_fv)
                     return builder.CreateFDiv(lhs, rhs);
-                return builder.CreateUDiv(lhs, rhs);
+                if (((IntegerType *)lhs->getType())->getSignBit())
+                    return builder.CreateSDiv(lhs, rhs);
+                else
+                    return builder.CreateUDiv(lhs, rhs);
             }
             case binary_arith_op::cmpeq: {
                 if (lhs->getType()->isFloatingPointTy())
@@ -873,10 +880,10 @@ Value *llvm_static_output_engine_impl::materialise_port(
                 auto rtype = rhs->getType();
                 if (ltype->isFloatingPointTy() && rtype->isFloatingPointTy())
                     return builder.CreateFRem(lhs, rhs);
-                if (((IntegerType *)ltype)->getSignBit() &&
-                    ((IntegerType *)ltype)->getSignBit())
+                if (((IntegerType *)ltype)->getSignBit())
                     return builder.CreateSRem(lhs, rhs);
-                return builder.CreateURem(lhs, rhs);
+                else
+                    return builder.CreateURem(lhs, rhs);
             }
             case binary_arith_op::cmpo: {
                 return builder.CreateCmp(CmpInst::FCMP_ORD, lhs, rhs);
