@@ -12,21 +12,12 @@ using namespace arancini::input::x86::translators;
 translation_result translator::translate(off_t address,
                                          xed_decoded_inst_t *xed_inst,
                                          const std::string &disasm) {
-    switch (xed_decoded_inst_get_iclass(xed_inst)) {
-        // TODO: this is a bad way of avoiding empty packets. Should be done by
-        // checking that the translator is a nop_translator, not hardcoded
-        // switch case
-        // case XED_ICLASS_NOP:
-        //	case XED_ICLASS_HLT:
-    case XED_ICLASS_CPUID:
-    case XED_ICLASS_PREFETCHNTA:
-    case XED_ICLASS_PAUSE:
-    case XED_ICLASS_NOP:
+    if (dynamic_cast<nop_translator *>(this)) {
         builder_.begin_packet(address, disasm);
         return builder_.end_packet() == packet_type::end_of_block
                    ? translation_result::end_of_block
                    : translation_result::noop;
-    default:
+    } else {
         builder_.begin_packet(address, disasm);
 
         xed_inst_ = xed_inst;
