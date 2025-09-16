@@ -18,7 +18,6 @@ using namespace arancini::output::dynamic::arm64;
 using namespace arancini::ir;
 
 // TODO: move to common
-register_operand memory_base_reg(register_operand::x18);
 register_operand context_block_reg(register_operand::x29);
 
 // TODO: handle as part of capabilities code
@@ -147,11 +146,7 @@ memory_operand arm64_translation_context::guestreg_memory_operand(
 register_operand
 arm64_translation_context::add_membase(const register_operand &addr,
                                        const value_type &type) {
-    const register_operand &mem_addr_vreg = vreg_alloc_.allocate(type);
-    builder_.add(mem_addr_vreg, memory_base_reg, addr,
-                 "add memory base register");
-
-    return mem_addr_vreg;
+    return addr;
 }
 
 void arm64_translation_context::begin_block() {
