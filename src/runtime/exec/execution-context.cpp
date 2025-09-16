@@ -252,13 +252,32 @@ int execution_context::internal_call(void *cpu_state, int call) {
             SIMPLE_SYSCALL(14, rt_sigprocmask, 4);
             SIMPLE_SYSCALL(19, readv, 3);
             SIMPLE_SYSCALL(20, writev, 3);
+            COMPLEX_SYSCALL(21, faccessat,
+                            (unsigned long)AT_FDCWD SYSCALL_PARAMS(2));
             SIMPLE_SYSCALL(28, madvise, 3);
             SIMPLE_SYSCALL(35, nanosleep, 2);
+            SIMPLE_SYSCALL(39, getpid, 0);
+            SIMPLE_SYSCALL(41, socket, 3);
+            SIMPLE_SYSCALL(42, connect, 3);
+            SIMPLE_SYSCALL(43, accept, 3);
+            SIMPLE_SYSCALL(44, sendto, 6);
+            SIMPLE_SYSCALL(45, recvfrom, 6);
+            SIMPLE_SYSCALL(46, sendmsg, 3);
+            SIMPLE_SYSCALL(47, recvmsg, 3);
+            SIMPLE_SYSCALL(48, shutdown, 2);
+            SIMPLE_SYSCALL(49, bind, 3);
+            SIMPLE_SYSCALL(50, listen, 2);
+            SIMPLE_SYSCALL(51, getsockname, 3);
+            SIMPLE_SYSCALL(52, getpeername, 3);
+            SIMPLE_SYSCALL(53, socketpair, 4);
+            SIMPLE_SYSCALL(54, setsockopt, 5);
             SIMPLE_SYSCALL(60, exit, 1);
+            SIMPLE_SYSCALL(63, uname, 1);
             SIMPLE_SYSCALL(72, fcntl, 3);
             SIMPLE_SYSCALL(77, ftruncate, 2);
             COMPLEX_SYSCALL(83, mkdirat,
                             (unsigned long)AT_FDCWD SYSCALL_PARAMS(2));
+            SIMPLE_SYSCALL(96, gettimeofday, 2);
             SIMPLE_SYSCALL(186, gettid, 0);
             SIMPLE_SYSCALL(200, tkill, 2);
             SIMPLE_SYSCALL(202, futex, 6);
@@ -266,8 +285,17 @@ int execution_context::internal_call(void *cpu_state, int call) {
             SIMPLE_SYSCALL(204, sched_getaffinity, 3);
             SIMPLE_SYSCALL(231, exit_group, 1);
             SIMPLE_SYSCALL(228, clock_gettime, 2);
+            SIMPLE_SYSCALL(230, clock_nanosleep, 4);
+            SIMPLE_SYSCALL(234, tgkill, 3);
+            SIMPLE_SYSCALL(257, openat, 4);
             SIMPLE_SYSCALL(258, mkdirat, 3);
+            SIMPLE_SYSCALL(262, newfstatat, 4)
+            SIMPLE_SYSCALL(267, readlinkat, 4);
+            SIMPLE_SYSCALL(273, set_robust_list, 2);
+            SIMPLE_SYSCALL(318, getrandom, 3);
             SIMPLE_SYSCALL(324, membarrier, 2);
+            SIMPLE_SYSCALL(334, rseq, 2);
+            SIMPLE_SYSCALL(302, prlimit64, 2);
         case 4: // stat
         case 5: // fstat
         case 6: // lstat
@@ -424,24 +452,22 @@ int execution_context::internal_call(void *cpu_state, int call) {
         }
         case 16: // ioctl
         {
-            util::global_logger.debug("System call: ioctl()\n");
-
-            // Not sure how many actually needed
-
-            uint64_t arg = x86_state->RDX;
-            uint64_t request = x86_state->RSI;
-            switch (request) {
-            case TIOCGWINSZ:
-                arg = (uintptr_t)get_memory_ptr(arg);
+            uint64_t fd = x86_state->RDI;
+            switch (fd) {
+            case STDIN_FILENO:
+            case STDOUT_FILENO:
+            case STDERR_FILENO:
                 break;
             default:
-                util::global_logger.warn("Unknown ioctl request {}\n", request);
-                x86_state->RAX = -EINVAL;
-                return 0;
+                util::global_logger.error(
+                    "Unsupported file descriptor for ioctl: {}\n", fd);
+                x86_state->RAX = -EBADF;
+                return 1;
             }
 
             x86_state->RAX =
-                native_syscall(__NR_ioctl, x86_state->RDI, request, arg);
+                native_syscall(__NR_ioctl, fd, x86_state->RSI, x86_state->RDX,
+                               x86_state->R10, x86_state->R8, x86_state->R9);
             break;
         }
         case 56: // clone
