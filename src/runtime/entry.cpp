@@ -105,7 +105,6 @@ static void init_signals() {
 static const void *find_host_stack_bottom(int argc, const char **argv,
                                           size_t &argv_size, size_t &envp_size,
                                           size_t &auxv_size,
-                                          size_t &padding_size,
                                           size_t &asciiz_size) {
     // structure of stack:
     // argc
@@ -118,7 +117,7 @@ static const void *find_host_stack_bottom(int argc, const char **argv,
     // auxv[0]
     // ...
     // auxv[term] = AT_NULL
-    // padding (0-16)
+    // padding (unspecified size) -> use argc[0] to find the bottom of the stack
     // argument ASCIIZ strings
     // enviroment ASCIIZ string
     // end marker = nullptr
@@ -135,19 +134,17 @@ static const void *find_host_stack_bottom(int argc, const char **argv,
         auxv_size += sizeof(Elf64_auxv_t);
     } while ((auxv++)->a_type != AT_NULL);
 
-    // auxv is now at the end marker, which is followed by the padding
-    void *padding = (void *)(auxv);
-    size_t space = 16; // assume 16 more bytes are available in stack
-    std::align(16, 0, padding, space); // align to 16 bytes
-    padding_size = (reinterpret_cast<intptr_t>(padding) -
-                    reinterpret_cast<intptr_t>(auxv));
+    uint64_t padding_end = (uint64_t)(argv[0]) & ~0xFul;
 
     // both argument and environment strings are now at the end
-    const uint64_t *asciiz_end = reinterpret_cast<const uint64_t *>(padding);
+    const uint64_t *asciiz_end =
+        reinterpret_cast<const uint64_t *>(padding_end);
     do {
         asciiz_end++;
-        asciiz_size += sizeof(uint64_t);
     } while (*asciiz_end);
+
+    asciiz_size = (const char *)asciiz_end - (const char *)auxv;
+
     return asciiz_end;
 }
 
@@ -156,13 +153,6 @@ void push_asciiz_strings(const void *&host_bottom, void *&guest_bottom,
     (intptr_t &)host_bottom -= asciiz_size;
     (intptr_t &)guest_bottom -= asciiz_size;
     memcpy(guest_bottom, host_bottom, asciiz_size);
-}
-
-void push_padding(const void *&host_bottom, void *&guest_bottom,
-                  size_t padding_size) {
-    (intptr_t &)host_bottom -= padding_size;
-    (intptr_t &)guest_bottom -= padding_size;
-    // memcpy(guest_bottom, host_bottom, padding_size);
 }
 
 void push_aux_vectors(const void *&host_bottom, void *&guest_bottom,
@@ -197,8 +187,9 @@ void push_aux_vectors(const void *&host_bottom, void *&guest_bottom,
 
 const void *rebase_stack_pointer(const void *sp, const void *host_bottom,
                                  const void *guest_bottom) {
-    intptr_t offset = (intptr_t)guest_bottom - (intptr_t)host_bottom;
-    return (const void *)((intptr_t)sp + offset);
+    const void *result = (const void *)((uintptr_t)sp - (uintptr_t)host_bottom +
+                                        (uintptr_t)guest_bottom);
+    return result;
 }
 
 void push_env_strings(const void *&host_bottom, void *&guest_bottom,
@@ -224,13 +215,11 @@ void push_arg_strings(const void *&host_bottom, void *&guest_bottom,
 static void *setup_guest_stack(int argc, const char **argv, void *stack_bottom,
                                intptr_t entry_point) {
 
-    size_t argv_size = 0, envp_size = 0, auxv_size = 0, padding_size = 0,
-           asciiz_size = 0;
+    size_t argv_size = 0, envp_size = 0, auxv_size = 0, asciiz_size = 0;
     const void *host_bottom = find_host_stack_bottom(
-        argc, argv, argv_size, envp_size, auxv_size, padding_size, asciiz_size);
+        argc, argv, argv_size, envp_size, auxv_size, asciiz_size);
 
     push_asciiz_strings(host_bottom, stack_bottom, asciiz_size);
-    push_padding(host_bottom, stack_bottom, padding_size);
     push_aux_vectors(host_bottom, stack_bottom, auxv_size, entry_point);
     push_env_strings(host_bottom, stack_bottom, envp_size);
     push_arg_strings(host_bottom, stack_bottom, argv_size);
@@ -320,8 +309,8 @@ extern "C" void *initialise_dynamic_runtime(unsigned long entry_point, int argc,
     // Capture interesting signals, such as SIGSEGV.
     init_signals();
 
-    // Create an execution context for the given input (guest) and output (host)
-    // architecture.
+    // Create an execution context for the given input (guest) and output
+    // (host) architecture.
     ctx_ = new execution_context(ia, oe, optimise);
 
     // Create a memory area for the stack.
@@ -333,8 +322,8 @@ extern "C" void *initialise_dynamic_runtime(unsigned long entry_point, int argc,
     // Create the main execution thread.
     auto main_thread = ctx_->create_execution_thread();
 
-    // Initialise the CPU state structure with the PC set to the entry point of
-    // the guest program, and an emulated stack pointer at the top of the
+    // Initialise the CPU state structure with the PC set to the entry point
+    // of the guest program, and an emulated stack pointer at the top of the
     // emulated address space.
     x86_cpu_state *x86_state = (x86_cpu_state *)main_thread->get_cpu_state();
     __current_state = x86_state;
@@ -356,8 +345,9 @@ extern "C" void *initialise_dynamic_runtime(unsigned long entry_point, int argc,
                              fmt::ptr(x86_state), util::copy(x86_state->PC),
                              util::copy(x86_state->RSP));
 
-    // Initialisation of the runtime is complete - return a pointer to the raw
-    // CPU state structure so that the static code can use it for emulation.
+    // Initialisation of the runtime is complete - return a pointer to the
+    // raw CPU state structure so that the static code can use it for
+    // emulation.
     return main_thread->get_cpu_state();
 }
 
@@ -381,8 +371,8 @@ extern "C" void *lookup_static_fn_addr(unsigned long guest_addr) {
 }
 
 /*
- * Entry point from /static/ code when the CPU jumps to an address that hasn't
- * been translated.
+ * Entry point from /static/ code when the CPU jumps to an address that
+ * hasn't been translated.
  */
 extern "C" int invoke_code(void *cpu_state) { return ctx_->invoke(cpu_state); }
 
