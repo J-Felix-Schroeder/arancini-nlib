@@ -443,15 +443,20 @@ class read_mem_node : public value_node {
 class write_reg_node : public action_node {
   public:
     write_reg_node(unsigned long regoff, unsigned long regidx,
-                   const char *regname, port &val)
+                   const char *regname, port &val, uint8_t internal_regoff = 0)
         : action_node(node_kinds::write_reg), regoff_(regoff), regidx_(regidx),
-          regname_(regname), val_(val) {
+          regname_(regname), val_(val), internal_regoff_(internal_regoff) {
         val.add_target(this);
     }
 
     [[nodiscard]]
     unsigned long regoff() const {
         return regoff_;
+    }
+
+    [[nodiscard]]
+    uint8_t internal_regoff() const {
+        return internal_regoff_;
     }
 
     [[nodiscard]]
@@ -481,6 +486,7 @@ class write_reg_node : public action_node {
 
   private:
     unsigned long regoff_;
+    uint8_t internal_regoff_; // used for AH, CH, DH, BH registers
     unsigned long regidx_;
     const char *regname_;
     port &val_;

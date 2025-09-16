@@ -369,7 +369,9 @@ void arm64_translation_context::materialise_read_reg(const read_reg_node &n) {
     auto &dest_vregs = vreg_alloc_.allocate(n.val());
     for (std::size_t i = 0; i < dest_vregs.size(); ++i) {
         std::size_t width = dest_vregs[i].type().width();
-        auto addr = guestreg_memory_operand(n.regoff() + i * width);
+        auto addr = guestreg_memory_operand(n.regoff() +
+                                            i * (width / 8) + // width in bytes
+                                            n.internal_regoff());
         switch (width) {
         case 1:
         case 8:
@@ -423,7 +425,9 @@ void arm64_translation_context::materialise_write_reg(const write_reg_node &n) {
             src_vregs[i] = cast(src_vregs[i], n.value().type());
 
         std::size_t width = src_vregs[i].type().width();
-        auto addr = guestreg_memory_operand(n.regoff() + i * width);
+        auto addr = guestreg_memory_operand(n.regoff() +
+                                            i * (width / 8) + // width in bytes
+                                            n.internal_regoff());
         switch (width) {
         case 1:
         case 8:
@@ -460,7 +464,8 @@ void arm64_translation_context::materialise_read_mem(const read_mem_node &n) {
     for (std::size_t i = 0; i < dest_vregs.size(); ++i) {
         std::size_t width = dest_vregs[i].type().width();
 
-        memory_operand mem_op(addr_vreg, immediate_operand(i * width, u12()));
+        memory_operand mem_op(addr_vreg,
+                              immediate_operand(i * (width / 8), u12()));
         switch (width) {
         case 1:
         case 8:
@@ -500,7 +505,8 @@ void arm64_translation_context::materialise_write_mem(const write_mem_node &n) {
     for (std::size_t i = 0; i < src_vregs.size(); ++i) {
         std::size_t width = src_vregs[i].type().width();
 
-        memory_operand mem_op(address, immediate_operand(i * width, u12()));
+        memory_operand mem_op(address,
+                              immediate_operand(i * (width / 8), u12()));
         switch (width) {
         case 1:
         case 8:
