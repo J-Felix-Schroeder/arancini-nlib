@@ -1730,6 +1730,10 @@ void arm64_translation_context::materialise_internal_call(
         ret_ = 1;
     } else if (n.fn().name() == "handle_int") {
         ret_ = 2;
+    } else if (n.fn().name() == "handle_poison") {
+        ret_ = 3;
+    } else if (n.fn().name() == "handle_cpuid") {
+        ret_ = 4;
     } else {
         throw backend_exception("unsupported internal call: {}", n.fn().name());
     }

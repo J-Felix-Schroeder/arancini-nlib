@@ -2117,6 +2117,9 @@ Value *llvm_static_output_engine_impl::lower_node(IRBuilder<> &builder,
         } else if (icn->fn().name() == "handle_int") {
             return builder.CreateCall(
                 switch_callee, {state_arg, ConstantInt::get(types.i32, 2)});
+        } else if (icn->fn().name() == "handle_cpuid") {
+            return builder.CreateCall(
+                switch_callee, {state_arg, ConstantInt::get(types.i32, 4)});
         } else {
             const port &ret = icn->val();
             const std::vector<port *> &args = icn->args();

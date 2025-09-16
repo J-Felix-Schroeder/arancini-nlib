@@ -1,3 +1,4 @@
+#include <arancini/input/x86/cpuid.hpp>
 #include <arancini/runtime/dbt/translation.h>
 #include <arancini/runtime/exec/execution-context.h>
 #include <arancini/runtime/exec/execution-thread.h>
@@ -127,6 +128,33 @@ void execution_context::allocate_guest_memory() {
     // this.
     syscall(SYS_arch_prctl, ARCH_SET_GS, (unsigned long long)memory_);
 #endif
+}
+
+void arancini::runtime::exec::execution_context::handle_cpuid(
+    x86::x86_cpu_state *x86_state) {
+    std::pair<uint32_t, uint32_t> cpuid_input{util::copy(x86_state->RAX),
+                                              util::copy(x86_state->RCX)};
+    auto result = input::x86::cpuid_map.find(cpuid_input);
+
+    if (result != input::x86::cpuid_map.end()) {
+        auto cpuid_result = result->second;
+        x86_state->RAX = cpuid_result->eax;
+        x86_state->RBX = cpuid_result->ebx;
+        x86_state->RCX = cpuid_result->ecx;
+        x86_state->RDX = cpuid_result->edx;
+        util::global_logger.info(
+            "CPUID: {:#x} {:#x} -> {:#x} {:#x} {:#x} {:#x}\n",
+            cpuid_input.first, cpuid_input.second, util::copy(x86_state->RAX),
+            util::copy(x86_state->RBX), util::copy(x86_state->RCX),
+            util::copy(x86_state->RDX));
+    } else {
+        util::global_logger.error("CPUID: {:#x} {:#x} not found\n",
+                                  cpuid_input.first, cpuid_input.second);
+        x86_state->RAX = 0;
+        x86_state->RBX = 0;
+        x86_state->RCX = 0;
+        x86_state->RDX = 0;
+    }
 }
 
 std::shared_ptr<execution_thread> execution_context::create_execution_thread() {
@@ -523,6 +551,9 @@ int execution_context::internal_call(void *cpu_state, int call) {
         auto pc = x86_state->PC;
         util::global_logger.error("Poison Instr @ GuestPC: {:#x}", pc);
         abort();
+    } else if (call == 4) {
+        handle_cpuid((x86::x86_cpu_state *)cpu_state);
+        return 0;
     } else {
         util::global_logger.error("Unsupported internal call: {}", call);
         return 1;
