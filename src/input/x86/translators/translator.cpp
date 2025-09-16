@@ -12,21 +12,14 @@ using namespace arancini::input::x86::translators;
 translation_result translator::translate(off_t address,
                                          xed_decoded_inst_t *xed_inst,
                                          const std::string &disasm) {
-    if (dynamic_cast<nop_translator *>(this)) {
-        builder_.begin_packet(address, disasm);
-        return builder_.end_packet() == packet_type::end_of_block
-                   ? translation_result::end_of_block
-                   : translation_result::noop;
-    } else {
-        builder_.begin_packet(address, disasm);
+    builder_.begin_packet(address, disasm);
 
-        xed_inst_ = xed_inst;
-        do_translate();
+    xed_inst_ = xed_inst;
+    do_translate();
 
-        return builder_.end_packet() == packet_type::end_of_block
-                   ? translation_result::end_of_block
-                   : translation_result::normal;
-    }
+    return builder_.end_packet() == packet_type::end_of_block
+               ? translation_result::end_of_block
+               : translation_result::normal;
 }
 
 /// @brief Print the xed encoded instruction details
@@ -494,11 +487,6 @@ value_node *translator::compute_address(int mem_idx) {
                           : 0;
 
     auto seg = xed_decoded_inst_get_seg_reg(xed_inst(), mem_idx);
-
-    if (xed_get_register_width_bits(base_reg) != 64 &&
-        base_reg != XED_REG_INVALID) {
-        throw std::runtime_error("base reg invalid size");
-    }
 
     value_node *address_base{nullptr};
 

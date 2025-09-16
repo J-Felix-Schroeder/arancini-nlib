@@ -23,7 +23,7 @@ namespace arancini::input::x86::translators {
 using namespace arancini::ir;
 using namespace arancini::input::x86;
 
-enum class translation_result { normal, noop, end_of_block, fail };
+enum class translation_result { normal, end_of_block, fail };
 
 class translator {
   public:
