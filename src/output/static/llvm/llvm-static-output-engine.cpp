@@ -1945,6 +1945,7 @@ Value *llvm_static_output_engine_impl::lower_node(IRBuilder<> &builder,
                 auto reg = reg_to_alloca_.at((reg_offsets)reg_off);
                 builder.CreateStore(out, reg);
             }
+            val = rhs;
             break;
         case binary_atomic_op::bor:
             out =
@@ -2584,15 +2585,17 @@ void llvm_static_output_engine_impl::save_callee_regs(IRBuilder<> &builder,
                                                       bool with_args) {
     auto args = {reg_offsets::RCX, reg_offsets::RDX, reg_offsets::RDI,
                  reg_offsets::RSI, reg_offsets::R8,  reg_offsets::R9};
+    // rax is passed as arg for variadic functions (indicates number of floats)
+    // since we dont pass it as arg (llvm ir) need to always store and restore
     auto regs = {
-        reg_offsets::PC,       reg_offsets::RBX,        reg_offsets::RSP,
-        reg_offsets::RBP,      reg_offsets::R12,        reg_offsets::R13,
-        reg_offsets::R14,      reg_offsets::R15,        reg_offsets::FS,
-        reg_offsets::GS,       reg_offsets::X87_STS,    reg_offsets::X87_TAG,
-        reg_offsets::X87_CTRL, reg_offsets::X87_OPCODE, reg_offsets::ZMM0,
-        reg_offsets::ZMM1,     reg_offsets::ZMM2,       reg_offsets::ZMM3,
-        reg_offsets::ZMM4,     reg_offsets::ZMM5,       reg_offsets::ZMM6,
-        reg_offsets::ZMM7};
+        reg_offsets::PC,      reg_offsets::RAX,      reg_offsets::RBX,
+        reg_offsets::RSP,     reg_offsets::RBP,      reg_offsets::R12,
+        reg_offsets::R13,     reg_offsets::R14,      reg_offsets::R15,
+        reg_offsets::FS,      reg_offsets::GS,       reg_offsets::X87_STS,
+        reg_offsets::X87_TAG, reg_offsets::X87_CTRL, reg_offsets::X87_OPCODE,
+        reg_offsets::ZMM0,    reg_offsets::ZMM1,     reg_offsets::ZMM2,
+        reg_offsets::ZMM3,    reg_offsets::ZMM4,     reg_offsets::ZMM5,
+        reg_offsets::ZMM6,    reg_offsets::ZMM7};
     for (auto reg : regs) {
         auto ptr = builder.CreateGEP(
             types.cpu_state, state_arg,
@@ -2632,24 +2635,18 @@ void llvm_static_output_engine_impl::save_callee_regs(IRBuilder<> &builder,
 void llvm_static_output_engine_impl::restore_callee_regs(IRBuilder<> &builder,
                                                          Argument *state_arg,
                                                          bool with_rets) {
+    // rax always needs to be restored because it can also be an arg (see
+    // save_callee_regs)
     auto rets = {reg_offsets::RAX, reg_offsets::RDX};
-    auto regs = {reg_offsets::PC,
-                 reg_offsets::RBX,
-                 reg_offsets::RSP,
-                 reg_offsets::RBP,
-                 reg_offsets::R12,
-                 reg_offsets::R13,
-                 reg_offsets::R14,
-                 reg_offsets::R15,
-                 reg_offsets::FS,
-                 reg_offsets::GS,
-                 reg_offsets::X87_STACK_BASE,
-                 reg_offsets::X87_STS,
-                 reg_offsets::X87_TAG,
-                 reg_offsets::X87_CTRL,
-                 reg_offsets::X87_OPCODE,
-                 reg_offsets::ZMM0,
-                 reg_offsets::ZMM1};
+    auto regs = {reg_offsets::PC,       reg_offsets::RAX,
+                 reg_offsets::RBX,      reg_offsets::RSP,
+                 reg_offsets::RBP,      reg_offsets::R12,
+                 reg_offsets::R13,      reg_offsets::R14,
+                 reg_offsets::R15,      reg_offsets::FS,
+                 reg_offsets::GS,       reg_offsets::X87_STACK_BASE,
+                 reg_offsets::X87_STS,  reg_offsets::X87_TAG,
+                 reg_offsets::X87_CTRL, reg_offsets::X87_OPCODE,
+                 reg_offsets::ZMM0,     reg_offsets::ZMM1};
     for (auto reg : regs) {
         auto ptr = builder.CreateGEP(
             types.cpu_state, state_arg,
