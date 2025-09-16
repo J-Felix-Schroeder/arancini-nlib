@@ -175,11 +175,11 @@ int execution_context::invoke(void *cpu_state) {
 
     auto x86_state = (x86::x86_cpu_state *)cpu_state;
 
-    util::global_logger.info("{}\n", util::logging_separator('='))
-        .info("INVOKE PC = {:#x}\n", util::copy(x86_state->PC))
-        .info("{}\n", util::logging_separator('='));
-    util::global_logger.info("Registers:\n{}\n", *x86_state)
-        .info("{}\n", util::logging_separator('-'));
+    util::global_logger.debug("{}\n", util::logging_separator('='))
+        .debug("INVOKE PC = {:#x}\n", util::copy(x86_state->PC))
+        .debug("{}\n", util::logging_separator('='));
+    util::global_logger.debug("Registers:\n{}\n", *x86_state)
+        .debug("{}\n", util::logging_separator('-'));
     // util::global_logger.debug("STACK:\n").
     //                    debug("{}\n", util::logging_separator('-'));
     // auto* memptr = reinterpret_cast<uint64_t*>(get_memory_ptr(0)) +
@@ -195,8 +195,8 @@ int execution_context::invoke(void *cpu_state) {
 
     // Chain
     if (et->chain_address_) {
-        util::global_logger.info("Chaining previous block to {:#x}\n",
-                                 util::copy(x86_state->PC));
+        util::global_logger.debug("Chaining previous block to {:#x}\n",
+                                  util::copy(x86_state->PC));
 
         te_.chain(et->chain_address_, txln->get_code_ptr());
     }
