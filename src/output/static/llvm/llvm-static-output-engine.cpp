@@ -721,7 +721,7 @@ Value *llvm_static_output_engine_impl::materialise_port(
 
         if (rrn->internal_regoff() != 0) {
             src_reg = builder.CreateGEP(
-                ty, src_reg,
+                types.i8, src_reg,
                 ConstantInt::get(types.i64, rrn->internal_regoff()));
         }
 
@@ -1696,7 +1696,12 @@ Value *llvm_static_output_engine_impl::lower_node(IRBuilder<> &builder,
         // auto dest_reg = builder.CreateGEP(types.cpu_state, state_arg, {
         // ConstantInt::get(types.i64, 0), ConstantInt::get(types.i32,
         // wrn->regidx()) }, 	idx_to_reg_name(wrn->regidx()));
-        auto dest_reg = reg_to_alloca_.at((reg_offsets)wrn->regoff());
+        ::llvm::Value *dest_reg = reg_to_alloca_.at((reg_offsets)wrn->regoff());
+        if (wrn->internal_regoff() != 0) {
+            dest_reg = builder.CreateGEP(
+                types.i8, dest_reg,
+                ConstantInt::get(types.i64, wrn->internal_regoff()));
+        }
 
         // auto *reg_type =
         // ((GetElementPtrInst*)dest_reg)->getResultElementType();
