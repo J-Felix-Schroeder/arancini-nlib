@@ -19,13 +19,10 @@ void mov_translator::do_translate() {
         auto tt = opname == XED_OPERAND_MEM0 ? type_of_operand(1)
                                              : type_of_operand(0);
         auto op1 = auto_cast(tt, read_operand(1));
-        // TODO: temporary hack for MOVQ with immediate
-        if (is_immediate_operand(1) &&
-            get_operand_width(1) < get_operand_width(0)) {
-            op1 =
-                builder().insert_sx(value_type(value_type_class::signed_integer,
-                                               get_operand_width(0)),
-                                    op1->val());
+
+        // Move imm32 sign extended to 64-bits to r/m64.
+        if (is_immediate_operand(1) && get_operand_width(0) == 64) {
+            op1 = builder().insert_sx(value_type::s64(), op1->val());
         }
         write_operand(0, op1->val());
         break;
