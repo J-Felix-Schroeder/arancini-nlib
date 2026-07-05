@@ -182,7 +182,17 @@ void txlat_engine::translate(
                         sym->value());
                     if (!sym->value())
                         continue;
-                    if (!sym->size()) {
+#ifdef NLIB
+		    if(nlibs.has_value()){
+			if(nlibs->native_functions().count(sym->name())){
+			    const nlib_function &func = nlibs->native_functions().at(sym->name());
+			    needed_nlibs.insert(func.libname);
+			    oe->add_chunk(generate_wrapper(*ia, func));
+		}
+	            }
+#endif	
+	    
+		    if (!sym->size()) {
                         // get the section the symbol is in
 
                         auto sec = elf.get_section(sym->section_index());
@@ -192,6 +202,8 @@ void txlat_engine::translate(
                         unique_translated.insert(*sym);
                         continue;
                     }
+
+
                     unique_translated.insert(*sym);
                     oe->add_chunk(translate_symbol(*ia, elf, *sym));
                 }
